@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>JSONL 动态看板</title>
+  <style>
+    :root{color-scheme:light;--ink:#173b37;--muted:#6d7d77;--line:#dce5df;--accent:#087f69;--bg:#f4f6f1}
+    *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.6 system-ui,-apple-system,"PingFang SC",sans-serif}
+    main{max-width:1440px;margin:auto;padding:36px 40px}header{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:24px}
+    h1{font-size:28px;letter-spacing:-1px;margin:0}h2{font-size:16px;margin:0}.eyebrow{font-size:11px;letter-spacing:2px;color:var(--accent);font-weight:700;margin-bottom:5px}
+    p{margin:5px 0;color:var(--muted)}.actions,.inline{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+    button,input,select{font:inherit;border:1px solid var(--line);border-radius:8px;padding:8px 12px;background:#fff;color:var(--ink);max-width:100%}
+    button{cursor:pointer}button:hover{border-color:var(--accent)}button:disabled{opacity:.4;cursor:default}button.primary{background:var(--accent);color:white;border-color:var(--accent)}
+    :focus-visible{outline:3px solid #66bea9;outline-offset:3px}label{font-size:12px;color:var(--muted)}label select{margin-left:6px}
+    .status{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);border-radius:20px;padding:5px 12px;background:white;font-size:12px;white-space:nowrap}
+    .dot{width:7px;height:7px;border-radius:50%;background:var(--accent)}.status.off .dot{background:#b08735}
+    .source{padding:14px 18px;background:#e9eee7;border-radius:10px;display:flex;gap:14px;align-items:center;margin-bottom:20px}.source span{white-space:nowrap;font-size:12px;color:var(--muted)}
+    code{font:12px/1.6 ui-monospace,SFMono-Regular,monospace;overflow-wrap:anywhere}.source code{flex:1;min-width:0}.source small{white-space:nowrap;color:var(--muted)}
+    .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px}.card,.panel{background:white;border:1px solid var(--line);border-radius:12px}
+    .card{padding:20px 22px}.card-label{font-size:12px;color:var(--muted)}.number{font-size:32px;line-height:1.3;font-weight:650;letter-spacing:-1px;margin:10px 0 6px;font-variant-numeric:tabular-nums}
+    .card small{color:var(--muted);font-size:11px}.charts{display:grid;grid-template-columns:1.55fr 1fr;gap:20px;margin-bottom:20px}.panel{padding:22px;min-width:0}
+    .panel-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}.caption{color:var(--muted);font-size:12px}
+    .chart{height:245px;position:relative;margin-top:12px}canvas{width:100%;height:100%;display:block}.empty{height:100%;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:13px;text-align:center}
+    .bars{display:flex;flex-direction:column;gap:12px;margin-top:20px;min-height:225px}.bar-head{display:flex;justify-content:space-between;font-size:12px;gap:12px}.bar-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:85%}.bar-track{height:7px;background:#edf2ec;border-radius:6px;margin-top:5px;overflow:hidden}.bar-fill{height:100%;background:var(--accent);border-radius:6px}
+    .records{padding:0;overflow:hidden}.records .panel-head{padding:20px 22px 12px}.search{width:300px}.table-wrap{overflow:auto;max-height:520px}table{border-collapse:collapse;min-width:100%;font-size:13px;text-align:left}th{color:var(--muted);font-weight:500;background:#f8faf6;position:sticky;top:0;z-index:1}th,td{padding:12px 20px;border-bottom:1px solid #edf0e9;white-space:nowrap}td{max-width:340px;overflow:hidden;text-overflow:ellipsis}tbody tr{cursor:pointer}tbody tr:hover{background:#f4faf7}.json-value{font-family:ui-monospace,monospace;font-size:12px}.pagination{padding:14px 22px;display:flex;justify-content:space-between;align-items:center;color:var(--muted);font-size:12px;gap:10px}
+    .notice{padding:10px 14px;border-radius:8px;background:#fff4dc;color:#86601b;margin-bottom:18px;font-size:12px}.error{background:#ffebe5;color:#9d3827}.hidden{display:none!important}footer{margin:18px 0;color:var(--muted);font-size:11px;display:flex;justify-content:space-between;gap:12px}
+    dialog{border:1px solid var(--line);border-radius:14px;padding:24px;width:min(800px,90vw);max-height:85vh;color:var(--ink)}dialog::backdrop{background:#173b3766}pre{white-space:pre-wrap;overflow-wrap:anywhere;font:13px/1.7 ui-monospace,monospace}dialog .panel-head{position:sticky;top:0;background:white}
+    @media(max-width:900px){main{padding:24px}.cards{grid-template-columns:repeat(2,1fr)}.charts{grid-template-columns:1fr}.source{flex-wrap:wrap}.source code{flex-basis:75%}header{align-items:flex-start;flex-direction:column}.search{width:230px}}
+    @media(max-width:480px){main{padding:18px 12px}.card{padding:16px}.number{font-size:27px}.panel{padding:16px}.source small{display:none}.pagination{flex-wrap:wrap}.search{width:100%}h1{font-size:24px}}
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div><div class="eyebrow">LOCAL DATA / LIVE VIEW</div><h1>JSONL 动态看板</h1><p>从持续写入的文件中，观察数据的变化。</p></div>
+    <div class="actions">
+      <span class="status" id="status" role="status"><span class="dot"></span><span id="statusText">正在连接</span></span>
+      <label>刷新<select id="interval" aria-label="刷新间隔"><option value="1000">1 秒</option><option value="2000" selected>2 秒</option><option value="5000">5 秒</option><option value="10000">10 秒</option></select></label>
+      <button id="pause">暂停</button><button class="primary" id="refresh">立即刷新</button>
+    </div>
+  </header>
+  <div class="source"><span>数据源</span><code id="path">连接中…</code><small id="fileSize"></small></div>
+  <div id="notice" class="notice hidden" role="status"></div>
+  <section class="cards" aria-label="汇总指标">
+    <article class="card"><div class="card-label">有效记录总数</div><div class="number" id="total">—</div><small>当前文件中已读取的 JSON 对象</small></article>
+    <article class="card"><div class="card-label">匹配记录</div><div class="number" id="matched">—</div><small id="retained">搜索范围：最近记录</small></article>
+    <article class="card"><div class="card-label">指标均值</div><div class="number" id="average">—</div><small id="metricLabel">选择一个数值字段</small></article>
+    <article class="card"><div class="card-label">指标最新值</div><div class="number" id="latest">—</div><small>匹配记录中最后一个有效数值</small></article>
+  </section>
+  <section class="charts">
+    <article class="panel">
+      <div class="panel-head"><h2>数值趋势</h2><label>指标<select id="metric" aria-label="数值字段"></select></label></div>
+      <div class="caption">最近 120 个有效数值 · 横轴为记录序号</div>
+      <div class="chart"><canvas id="trend" role="img" aria-label="数值趋势图"></canvas><div class="empty hidden" id="trendEmpty">暂无数值字段，等待数据写入</div></div>
+    </article>
+    <article class="panel">
+      <div class="panel-head"><h2>分类分布</h2><label>字段<select id="category" aria-label="分类字段"></select></label></div>
+      <div class="caption" id="categoryCaption">匹配记录中的分类计数 · 最多显示 8 类</div>
+      <div class="bars" id="bars"></div>
+    </article>
+  </section>
+  <section class="panel records">
+    <div class="panel-head"><div><h2>记录浏览</h2><span class="caption">最新记录在前 · 点击一行查看完整 JSON</span></div><input class="search" type="search" id="search" placeholder="搜索所有字段和值…" aria-label="搜索记录"></div>
+    <div class="table-wrap"><table><thead id="thead"></thead><tbody id="tbody"></tbody></table></div>
+    <div class="pagination"><span id="pageInfo">等待数据</span><div class="inline"><button id="prev">上一页</button><button id="next">下一页</button></div></div>
+  </section>
+  <footer><span id="updated">等待首次更新</span><span>本地只读 · 每行一个 JSON 对象 · 以换行符提交记录</span></footer>
+</main>
+<dialog id="detail"><div class="panel-head"><h2 id="detailTitle">记录详情</h2><button id="closeDetail">关闭</button></div><pre id="detailJson"></pre></dialog>
+<script>
+  const $ = id => document.getElementById(id);
+  let paused = false, busy = false, page = 1, pages = 1, timer, searchTimer, lastData, rerun = false;
+  const fmt = value => value === null || value === undefined ? '—' : new Intl.NumberFormat('zh-CN', {maximumFractionDigits:4, notation:Math.abs(value) >= 1e9 ? 'compact' : 'standard'}).format(value);
+  const node = (tag, text, className) => {const el = document.createElement(tag); if(text !== undefined) el.textContent = text; if(className) el.className = className; return el;};
+  function setStatus(text, off = false) {$('statusText').textContent = text; $('status').classList.toggle('off', off);}
+  function options(id, fields, selected) {
+    const select = $(id);
+    if(JSON.stringify(Array.from(select.options, item => item.value)) !== JSON.stringify(fields.length ? fields : [''])) {
+      select.replaceChildren(...(fields.length ? fields.map(field => {const option = node('option', field); option.value = field; return option;}) : [node('option', '暂无字段')]));
+      if(!fields.length) select.options[0].value = '';
+    }
+    select.value = selected; select.disabled = !fields.length;
+  }
+  function showDetail(row) {
+    $('detailTitle').textContent = `记录 #${row.index} · 文件第 ${row.line} 行`;
+    $('detailJson').textContent = JSON.stringify(row.data, null, 2);
+    $('detail').showModal();
+  }
+  function render(data) {
+    lastData = data; page = data.page; pages = data.pages;
+    $('path').textContent = data.path; $('path').title = data.path;
+    $('fileSize').textContent = `${fmt(data.size / 1024)} KB`;
+    for(const key of ['total','matched','average','latest']) $(key).textContent = fmt(data[key]);
+    $('retained').textContent = `搜索范围：最近 ${fmt(data.retained)} 条`;
+    $('metricLabel').textContent = data.metric || '暂无数值字段';
+    options('metric', data.numeric_fields, data.metric); options('category', data.category_fields, data.category);
+    const notices = [];
+    if(data.state === 'waiting') notices.push('文件尚未创建，正在等待写入。');
+    if(data.state === 'reading') notices.push('正在分批读取文件，后续刷新将继续加载。');
+    if(data.pending) notices.push('最后一行尚未完成，写入换行符后会自动显示。');
+    if(data.invalid) notices.push(`已跳过 ${data.invalid} 行：JSON 格式错误、非对象或单行超过 1 MB。`);
+    if(data.total > data.retained) notices.push(`图表、搜索和均值仅统计最近 ${fmt(data.retained)} 条，总数统计已读取的所有有效记录。`);
+    $('notice').textContent = notices.join(' '); $('notice').className = `notice${notices.length ? '' : ' hidden'}`;
+    setStatus(paused ? '已暂停' : data.state === 'waiting' ? '等待文件' : data.state === 'reading' ? '正在加载' : '实时更新', paused || data.state === 'waiting');
+    $('bars').replaceChildren();
+    if(!data.categories.length) $('bars').append(node('div', '暂无分类数据', 'empty'));
+    const maxCount = data.categories[0]?.[1] || 1;
+    for(const [name, count] of data.categories) {
+      const bar = node('div'), heading = node('div', undefined, 'bar-head');
+      const label = node('span', name, 'bar-label'); label.title = name;
+      heading.append(label, node('span', fmt(count)));
+      const track = node('div', undefined, 'bar-track'), fill = node('div', undefined, 'bar-fill');
+      fill.style.width = `${count / maxCount * 100}%`; track.append(fill); bar.append(heading, track); $('bars').append(bar);
+    }
+    $('categoryCaption').textContent = `共 ${data.category_unique} 类 · 最多显示计数最高的 8 类`;
+    const keys = [...new Set(data.rows.flatMap(row => Object.keys(row.data)))].slice(0, 8);
+    const head = node('tr'); head.append(node('th', '序号 / 行号'));
+    keys.forEach(key => head.append(node('th', key))); $('thead').replaceChildren(head); $('tbody').replaceChildren();
+    for(const row of data.rows) {
+      const tr = node('tr'); tr.tabIndex = 0; tr.setAttribute('aria-label', `查看记录 ${row.index}`);
+      tr.append(node('td', `${row.index} / ${row.line}`, 'json-value'));
+      keys.forEach(key => {const value = row.data[key]; const text = value === undefined ? '—' : typeof value === 'string' ? value : JSON.stringify(value); const td = node('td', text, 'json-value'); td.title = text; tr.append(td);});
+      tr.onclick = () => showDetail(row); tr.onkeydown = event => {if(event.key === 'Enter' || event.key === ' ') {event.preventDefault(); showDetail(row);}};
+      $('tbody').append(tr);
+    }
+    if(!data.rows.length) {const tr = node('tr'), td = node('td', '暂无匹配记录'); td.colSpan = 9; tr.append(td); $('tbody').append(tr);}
+    $('pageInfo').textContent = `第 ${page} / ${pages} 页 · ${fmt(data.matched)} 条记录 · 每页 25 条`;
+    $('prev').disabled = page <= 1; $('next').disabled = page >= pages;
+    $('updated').textContent = `最近更新 ${new Date(data.updated_at).toLocaleTimeString('zh-CN')} · 跳过 ${data.invalid} 行`;
+    drawTrend();
+  }
+  function drawTrend() {
+    if(!lastData) return;
+    const points = lastData.trend, canvas = $('trend');
+    canvas.classList.toggle('hidden', !points.length); $('trendEmpty').classList.toggle('hidden', !!points.length);
+    if(!points.length) return;
+    const width = canvas.clientWidth, height = canvas.clientHeight, dpr = window.devicePixelRatio || 1;
+    canvas.width = width * dpr; canvas.height = height * dpr;
+    const ctx = canvas.getContext('2d'); ctx.scale(dpr, dpr);
+    const left = 65, right = width - 18, top = 20, bottom = height - 30;
+    const numbers = points.map(point => point.value), low = Math.min(...numbers), high = Math.max(...numbers);
+    // Scale by magnitude first so a range spanning large finite values stays finite.
+    const scale = Math.max(Math.abs(low), Math.abs(high), 1), lo = low / scale, hi = high / scale;
+    const y = value => hi === lo ? (top + bottom) / 2 : bottom - ((value / scale - lo) / (hi - lo)) * (bottom - top);
+    const x = i => points.length === 1 ? (left + right) / 2 : left + i / (points.length - 1) * (right - left);
+    ctx.font = '11px system-ui'; ctx.textBaseline = 'middle';
+    for(let i = 0; i < 4; i++) {
+      const pos = top + (bottom - top) * i / 3;
+      ctx.strokeStyle = '#e8eee8'; ctx.beginPath(); ctx.moveTo(left, pos); ctx.lineTo(right, pos); ctx.stroke();
+      ctx.fillStyle = '#6d7d77'; ctx.textAlign = 'right'; ctx.fillText(fmt((hi * (1 - i / 3) + lo * i / 3) * scale), left - 10, pos, left - 12);
+    }
+    ctx.beginPath(); ctx.moveTo(x(0), bottom); points.forEach((point, i) => ctx.lineTo(x(i), y(point.value))); ctx.lineTo(x(points.length - 1), bottom); ctx.closePath();
+    const gradient = ctx.createLinearGradient(0, top, 0, bottom); gradient.addColorStop(0, '#087f692e'); gradient.addColorStop(1, '#087f6903'); ctx.fillStyle = gradient; ctx.fill();
+    ctx.beginPath(); points.forEach((point, i) => i ? ctx.lineTo(x(i), y(point.value)) : ctx.moveTo(x(i), y(point.value))); ctx.strokeStyle = '#087f69'; ctx.lineWidth = 2.5; ctx.stroke();
+    ctx.fillStyle = '#087f69'; ctx.beginPath(); ctx.arc(x(points.length - 1), y(points[points.length - 1].value), 4, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#6d7d77'; ctx.textAlign = 'left'; ctx.fillText(`#${points[0].index}`, left, height - 9); ctx.textAlign = 'right'; ctx.fillText(`#${points[points.length - 1].index}`, right, height - 9);
+    canvas.setAttribute('aria-label', `${lastData.metric}，${points.length} 个数值，最小值 ${fmt(low)}，最大值 ${fmt(high)}`);
+  }
+  function schedule() {clearTimeout(timer); if(!paused) timer = setTimeout(load, Number($('interval').value));}
+  async function load() {
+    clearTimeout(timer);
+    if(busy) {rerun = true; return;}
+    busy = true;
+    const query = new URLSearchParams({metric:$('metric').value, category:$('category').value, search:$('search').value, page:String(page)});
+    try {
+      const response = await fetch(`/api/snapshot?${query}`, {signal:AbortSignal.timeout(15000)});
+      const data = await response.json(); if(!response.ok) throw new Error(data.error || '读取失败'); render(data);
+    } catch(error) {
+      setStatus('连接异常', true); $('notice').textContent = `读取失败：${error.message}。请检查服务和文件权限。`; $('notice').className = 'notice error';
+    } finally {busy = false; if(rerun) {rerun = false; load();} else schedule();}
+  }
+  $('pause').onclick = () => {paused = !paused; $('pause').textContent = paused ? '继续' : '暂停'; if(paused) {clearTimeout(timer); setStatus('已暂停', true);} else load();};
+  $('refresh').onclick = load; $('interval').onchange = schedule;
+  for(const id of ['metric','category']) $(id).onchange = () => {page = 1; load();};
+  $('search').oninput = () => {clearTimeout(searchTimer); searchTimer = setTimeout(() => {page = 1; load();}, 250);};
+  $('prev').onclick = () => {page--; load();}; $('next').onclick = () => {page++; load();};
+  $('closeDetail').onclick = () => $('detail').close();
+  new ResizeObserver(drawTrend).observe($('trend').parentElement);
+  load();
+</script>
+</body>
+</html>

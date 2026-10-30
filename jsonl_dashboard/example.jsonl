@@ -1,0 +1,5 @@
+{"id":1,"timestamp":"2026-10-31T10:00:00","status":"success","model":"model-a","latency_ms":820,"tokens":1260,"metrics":{"score":0.82},"response":"第一条示例结果"}
+{"id":2,"timestamp":"2026-10-31T10:00:01","status":"success","model":"model-b","latency_ms":640,"tokens":980,"metrics":{"score":0.91},"response":"第二条示例结果"}
+{"id":3,"timestamp":"2026-10-31T10:00:02","status":"error","model":"model-a","latency_ms":1500,"tokens":0,"metrics":{"score":0},"response":null}
+{"id":4,"timestamp":"2026-10-31T10:00:03","status":"success","model":"model-b","latency_ms":710,"tokens":1120,"metrics":{"score":0.88},"response":"第四条示例结果"}
+{"id":5,"timestamp":"2026-10-31T10:00:04","status":"success","model":"model-a","latency_ms":590,"tokens":1450,"metrics":{"score":0.95},"response":"第五条示例结果"}
